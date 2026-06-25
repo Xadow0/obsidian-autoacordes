@@ -1,0 +1,24 @@
+{
+  "name": "obsidian-autoacordes",
+  "version": "1.0.0",
+  "description": "Obsidian plugin to paste lyrics with chords and save them as clean notes organized by artist, with a mobile (inline) and a desktop (chords-above-lyrics) version.",
+  "author": "Xadow0",
+  "license": "MIT",
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "chords",
+    "acordes",
+    "guitar",
+    "lyrics",
+    "songbook"
+  ],
+  "homepage": "https://github.com/Xadow0/obsidian-autoacordes",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Xadow0/obsidian-autoacordes.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Xadow0/obsidian-autoacordes/issues"
+  }
+}

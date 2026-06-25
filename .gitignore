@@ -1,0 +1,10 @@
+# Dependencies
+node_modules/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+
+# Local data created by the plugin at runtime
+data.json
