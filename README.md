@@ -108,6 +108,9 @@ The core is a small parser that turns *chords-above-lyrics* into *inline chords*
 3. Pasted sheets where chords and lyrics share a line are split back into two lines first.
 4. Unicode spaces (`&nbsp;`, etc.) are normalized so columns line up.
 
+<img width="1850" height="1024" alt="Captura de pantalla 2026-06-25 224847" src="https://github.com/user-attachments/assets/325fb3d3-35a0-4dca-8169-294fa3f4a34a" />
+
+
 ## Development
 
 This plugin is intentionally dependency-free: the shipped `main.js` is the source — there is
