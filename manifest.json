@@ -1,9 +1,9 @@
 {
   "id": "autoacordes",
   "name": "AutoAcordes",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "minAppVersion": "1.4.0",
-  "description": "Paste lyrics with chords (e.g. from chord sites) and save them as clean notes organized by artist, with a mobile (inline chords) and a desktop (chords above lyrics) version.",
+  "description": "Paste lyrics with chords (e.g. from chord sites) and save them as clean notes organized by artist, in ChordPro format ready for the Chord Sheets plugin.",
   "author": "Xadow0",
   "authorUrl": "https://github.com/Xadow0",
   "isDesktopOnly": false

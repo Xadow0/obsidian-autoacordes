@@ -22,6 +22,16 @@ function normalizeSpaces(s) { return s.replace(SPACE_RE, ' '); }
 
 function isChordTok(t) { return CHORD.test(t); }
 
+// El plugin Chord Sheets parsea con tonal, que sólo entiende cifrado anglosajón.
+// Se convierte sólo desde MAYÚSCULAS: tonal lee "Do" como D disminuido.
+const LAT2ENG = { DO: 'C', RE: 'D', MI: 'E', FA: 'F', SOL: 'G', LA: 'A', SI: 'B' };
+function toEnglish(sym) {
+  const m = String(sym).match(/^(SOL|DO|RE|MI|FA|LA|SI)(.*)$/);
+  if (!m) return sym;
+  const rest = m[2].replace(/\/(SOL|DO|RE|MI|FA|LA|SI)/g, (_, r) => '/' + LAT2ENG[r]);
+  return LAT2ENG[m[1]] + rest;
+}
+
 function parseMulti(tok) {
   if (isChordTok(tok)) return [tok];
   if (tok.indexOf('-') >= 0) {
@@ -94,7 +104,7 @@ function chordPositions(line) {
   const res = [];
   for (const [col, tok] of matchAllIdx(line, /\S+/)) {
     const sub = parseMulti(tok);
-    if (sub) sub.forEach((ch, i) => res.push([col + i, ch]));
+    if (sub) sub.forEach((ch, i) => res.push([col + i, toEnglish(ch)]));
   }
   return res;
 }
@@ -115,10 +125,13 @@ function merge(chordline, lyric, label) {
   let out = '', prev = 0;
   for (const [idx, ch] of ins) { out += L.slice(prev, idx) + '\x00' + ch + '\x01'; prev = idx; }
   out += L.slice(prev);
-  out = out.replace(/\x00(.*?)\x01/g, (_, c) => '**[' + c + ']**');
-  out = out.replace(/\s*(\*\*\[[^\]]*\]\*\*)\s*/g, ' $1 ');
+  // Formato ChordPro: el acorde va pegado a la sílaba (la inserción ya se hizo
+  // en el inicio de palabra), sin negritas markdown: dentro de un bloque
+  // ```chords los ** saldrían literales.
+  out = out.replace(/\x00(.*?)\x01\s*/g, (_, c) => '[' + c + ']');
   out = out.replace(/ +/g, ' ').trim();
-  if (label) out = '**(' + label.trim().replace(/:+$/, '') + ')** ' + out;
+  // La etiqueta pasa a ser una cabecera de sección en su propia línea.
+  if (label) out = '[' + label.trim().replace(/:+$/, '') + ']\n' + out;
   return out;
 }
 
@@ -127,9 +140,12 @@ function renderInstrumental(line) {
   let i = 0; const label = [];
   while (i < toks.length && !parseMulti(toks[i]) && !ANNOT.test(toks[i])) { label.push(toks[i]); i++; }
   const rest = toks.slice(i); const parts = [];
-  for (const t of rest) { const sub = parseMulti(t); if (sub) parts.push(...sub.map(c => '[' + c + ']')); else parts.push(t); }
-  const body = parts.join(' ');
-  return label.length ? '**' + label.join(' ') + '** ' + body : body;
+  for (const t of rest) { const sub = parseMulti(t); if (sub) parts.push(...sub.map(c => '[' + toEnglish(c) + ']')); else parts.push(t); }
+  let body = parts.join(' ');
+  // Un acorde suelto como "[G]" en línea propia lo leería Chord Sheets como
+  // cabecera de sección; sin corchetes lo detecta igual y muestra su diagrama.
+  if (/^\[[^\]\s]+\]$/.test(body)) body = body.slice(1, -1);
+  return label.length ? '[' + label.join(' ').replace(/:+$/, '') + ']\n' + body : body;
 }
 
 function leadingLabel(line) {
@@ -144,7 +160,7 @@ function convert(block) {
   while (i < N) {
     const kind = classify(lines[i]);
     if (kind === 'blank') { out.push(''); i++; continue; }
-    if (kind === 'label') { out.push('**' + lines[i].trim() + '**'); i++; continue; }
+    if (kind === 'label') { out.push('[' + lines[i].trim().replace(/[:\s-]+$/, '') + ']'); i++; continue; }
     if (kind === 'tab') { out.push(lines[i].replace(/\s+$/, '')); i++; continue; }
     if (kind === 'chords') {
       let j = i + 1;
@@ -290,7 +306,7 @@ function sanitizeName(name) {
 }
 
 function buildNote(meta, rawBlock, s) {
-  const mobile = convert(rawBlock);
+  const chordpro = convert(rawBlock);
   const fm = ['---'];
   fm.push('artista: "[[' + meta.artista + ']]"');
   if (meta.otros && meta.otros.length) {
@@ -299,16 +315,17 @@ function buildNote(meta, rawBlock, s) {
   }
   fm.push('cancion: "[[' + meta.cancion + ']]"');
   if (meta.genero) fm.push('genero: ' + meta.genero);
-  fm.push('tono: ' + (meta.tono || '{{tono}}'));
+  fm.push('tono: ' + (meta.tono || ''));
   fm.push('capo: ' + (meta.capo !== '' && meta.capo != null ? meta.capo : 0));
-  fm.push('formato: inline');
+  fm.push('formato: chordpro');
   fm.push('---');
 
-  const movilHead = '## 🎶 Letra + Acordes (versión móvil)';
-  const ordHead = '## 🎶 Letra + [[Acordes]]';
+  // Una sola versión: bloque ```chords con acordes inline. Con el ajuste
+  // "Display inline/ChordPro-style chords over lyrics" de Chord Sheets se ve
+  // como acordes-sobre-letra en el ordenador y reflowa bien en el móvil.
+  const head = '## 🎶 Letra + [[Acordes]]';
   const fence = '```';
-  const movilBlock = movilHead + '\n\n' + mobile + '\n';
-  const ordBlock = ordHead + '\n' + fence + '\n' + normalizeSpaces(rawBlock).replace(/\s+$/, '') + '\n' + fence + '\n';
+  const block = head + '\n\n' + fence + 'chords\n' + chordpro.replace(/\s+$/, '') + '\n' + fence + '\n';
 
   const parts = [];
   parts.push(fm.join('\n'));
@@ -316,8 +333,7 @@ function buildNote(meta, rawBlock, s) {
   parts.push('');
   if (s.hubNote) parts.push('[[' + s.hubNote + ']]');
   parts.push('');
-  if (s.mobileFirst) { parts.push(movilBlock); parts.push(ordBlock); }
-  else { parts.push(ordBlock); parts.push(movilBlock); }
+  parts.push(block);
   return parts.join('\n').replace(/\n{3,}/g, '\n\n').replace(/\s+$/, '') + '\n';
 }
 
@@ -325,7 +341,7 @@ function buildNote(meta, rawBlock, s) {
  *  Modal de entrada
  * ========================================================================= */
 
-const DEFAULTS = { baseFolder: 'Acordes', hubNote: 'Música', mobileFirst: true };
+const DEFAULTS = { baseFolder: 'Acordes', hubNote: 'Música' };
 
 class AddSongModal extends Modal {
   constructor(app, plugin) {
@@ -464,8 +480,8 @@ class AutoAcordesSettingTab extends PluginSettingTab {
       .addText(t => t.setValue(this.plugin.settings.baseFolder).onChange(async v => { this.plugin.settings.baseFolder = v.trim() || 'Acordes'; await this.plugin.saveSettings(); }));
     new Setting(containerEl).setName('Nota central (hub)').setDesc('Nota a la que enlazan todas las canciones. Vacío para desactivar.')
       .addText(t => t.setValue(this.plugin.settings.hubNote).onChange(async v => { this.plugin.settings.hubNote = v.trim(); await this.plugin.saveSettings(); }));
-    new Setting(containerEl).setName('Versión móvil arriba').setDesc('Coloca la versión inline (móvil) antes que la de ordenador.')
-      .addToggle(t => t.setValue(this.plugin.settings.mobileFirst).onChange(async v => { this.plugin.settings.mobileFirst = v; await this.plugin.saveSettings(); }));
+    // "Versión móvil arriba" ya no aplica: ahora se genera un único bloque
+    // ```chords en formato ChordPro que sirve para móvil y ordenador.
   }
 }
 
